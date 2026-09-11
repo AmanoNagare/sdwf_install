@@ -1,12 +1,12 @@
 # ==============================================================================
-# Stable Diffusion WebUI Forge: 他PC用・汎用セットアップスクリプト
+# Stable Diffusion WebUI Forge: 完全自動・一発起動インストーラー
 # ==============================================================================
 $ErrorActionPreference = "Stop"
 
 $InstallDir = "$HOME\SD_Forge"
 $ForgeRepo  = "https://github.com/lllyasviel/stable-diffusion-webui-forge.git"
 
-Write-Host "=== [1/5] 前準備・リポジトリ取得 ===" -ForegroundColor Cyan
+Write-Host "=== [1/5] リポジトリの準備 ===" -ForegroundColor Cyan
 Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
@@ -19,7 +19,7 @@ if (-not (Test-Path "$InstallDir\.git")) {
 }
 Set-Location $InstallDir
 
-Write-Host "`n=== [2/5] uv による Python 3.10 環境構築 ===" -ForegroundColor Cyan
+Write-Host "`n=== [2/5] uv による Python 3.10 仮想環境の作成 ===" -ForegroundColor Cyan
 if (-not (Get-Command "uv" -ErrorAction SilentlyContinue) -and -not (Test-Path "$HOME\.local\bin\uv.exe")) {
     powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
 }
@@ -31,19 +31,18 @@ if (-not (Test-Path $PythonExe)) {
     & $uv venv $VenvDir --python 3.10 --seed
 }
 
-Write-Host "`n=== [3/5] PyTorch & コア要件の高速導入 ===" -ForegroundColor Cyan
+Write-Host "`n=== [3/5] PyTorch & コアライブラリの導入 ===" -ForegroundColor Cyan
 # PyTorch (CUDA 12.4)
 & $uv pip install torch torchvision torchaudio --index-url "https://download.pytorch.org/whl/cu124" --python $PythonExe
 
-# Forge公式要件（Gradio 4系・Pydantic 2.8.2・FastAPI 0.104.1が正常に入ります）
+# Forge公式要件の導入
 & $PythonExe -m pip install -r requirements_versions.txt
 
-# Forge 公式要件導入後、FastAPI のみを Pydantic 2.8 対応版へ追従させる
-& $PythonExe -m pip install -r requirements_versions.txt
+# 【最重要】公式の古い FastAPI (0.104.1) を Pydantic 2.8 対応版へ即座に更新
 & $PythonExe -m pip install "fastapi>=0.112.0"
 
-Write-Host "`n=== [4/5] NumPy 2.x 侵入防止ロックと scikit-image の整合 ===" -ForegroundColor Cyan
-# 1. constraints.txt と pip.ini で NumPy 2.x の侵入を完全遮断
+Write-Host "`n=== [4/5] NumPy 2.x の侵入遮断 & 画像処理ライブラリの整合 ===" -ForegroundColor Cyan
+# 1. 恒久的な制約ファイルと pip.ini の配備（以降の pip 実行で NumPy 2.x を完全阻止）
 $ConstraintFile = "$InstallDir\constraints.txt"
 Set-Content -Path $ConstraintFile -Value "numpy>=1.26.2,<2.0.0`nsetuptools<70" -Encoding Ascii
 
@@ -51,17 +50,17 @@ $PipIni = "$VenvDir\pip.ini"
 Set-Content -Path $PipIni -Value "[global]`nconstraint = $ConstraintFile" -Encoding Ascii
 $env:PIP_CONSTRAINT = $ConstraintFile
 
-# 2. scikit-image と画像処理ライブラリを NumPy 1.x の下で固定
+# 2. scikit-image と関連モジュールを NumPy 1.x の下で確定
 & $PythonExe -m pip install scipy imageio tifffile networkx
 & $PythonExe -m pip install --force-reinstall --no-deps "numpy==1.26.4"
 & $PythonExe -m pip install --force-reinstall --no-deps scikit-image
 
-# 3. CLIP・bitsandbytes の事前ビルド
+# 3. CLIP・bitsandbytes の事前導入
 & $PythonExe -m pip install "setuptools<70" wheel
 & $PythonExe -m pip install --no-build-isolation https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip
 & $PythonExe -m pip install open-clip-torch bitsandbytes==0.45.3
 
-# 4. 2回目以降の起動用バッチファイル作成
+# 4. 次回以降直接起動するための webui-user.bat 生成
 $BatPath = "$InstallDir\webui-user.bat"
 $BatLines = @(
     "@echo off",
@@ -74,7 +73,8 @@ $BatLines = @(
 )
 Set-Content -Path $BatPath -Value ($BatLines -join "`r`n") -Encoding Ascii
 
-Write-Host "`n=== [5/5] Stable Diffusion WebUI Forge 起動 ===" -ForegroundColor Cyan
-Write-Host "起動処理を開始します。http://127.0.0.1:7860 が表示されるまでお待ちください。" -ForegroundColor Green
+Write-Host "`n=== [5/5] WebUI Forge の起動 ===" -ForegroundColor Cyan
+Write-Host "すべての整合性が完了しました。起動しています..." -ForegroundColor Green
+Write-Host "URL: http://127.0.0.1:7860 が開くまでお待ちください。" -ForegroundColor Green
 
 & $PythonExe launch.py --cuda-malloc
