@@ -38,6 +38,10 @@ Write-Host "`n=== [3/5] PyTorch & コア要件の高速導入 ===" -ForegroundCo
 # Forge公式要件（Gradio 4系・Pydantic 2.8.2・FastAPI 0.104.1が正常に入ります）
 & $PythonExe -m pip install -r requirements_versions.txt
 
+# Forge 公式要件導入後、FastAPI のみを Pydantic 2.8 対応版へ追従させる
+& $PythonExe -m pip install -r requirements_versions.txt
+& $PythonExe -m pip install "fastapi>=0.112.0"
+
 Write-Host "`n=== [4/5] NumPy 2.x 侵入防止ロックと scikit-image の整合 ===" -ForegroundColor Cyan
 # 1. constraints.txt と pip.ini で NumPy 2.x の侵入を完全遮断
 $ConstraintFile = "$InstallDir\constraints.txt"
