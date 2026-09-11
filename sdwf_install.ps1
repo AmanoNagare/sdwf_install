@@ -9,13 +9,14 @@ $ErrorActionPreference = "Stop"
 # --- 設定項目 ---
 $InstallDir = "$HOME\SD_Forge"
 $ForgeRepo  = "https://github.com/lllyasviel/stable-diffusion-webui-forge.git"
-$TorchCuda  = "cu124"          # ドライバ対応CUDA（CUDA 12.4）
-$LaunchArgs = "--cuda-malloc"  # RTX A4000 等の16GB VRAM向け最適化
+$TorchCuda  = "cu124"          # CUDA 12.4
+$LaunchArgs = "--cuda-malloc"  # RTX A4000 等の 16GB VRAM 最適化
 # ----------------
 
 Write-Host "=== [1/5] 前処理・リポジトリ取得 ===" -ForegroundColor Cyan
-# ゾンビプロセスの停止
-taskkill /F /IM python.exe /T 2>$null
+
+# ゾンビプロセスの安全な終了（エラーが出てもスクリプトを止めない）
+Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
     Write-Error "Gitがインストールされていません。Git for Windowsを導入してください。"
@@ -50,7 +51,7 @@ Write-Host "`n=== [3/5] PyTorch & コア要件の高速導入 ===" -ForegroundCo
 Write-Host "-> PyTorch ($TorchCuda) インストール中..." -ForegroundColor Yellow
 & $uv pip install torch torchvision torchaudio --index-url "https://download.pytorch.org/whl/$TorchCuda" --python $PythonExe
 
-# Forge公式の requirements_versions.txt (Pydantic 2.8.2 / FastAPI 0.104.1 / Gradio 4.x が自然に揃う)
+# Forge公式 requirements_versions.txt (Pydantic 2.8.2 / FastAPI 0.104.1 / Gradio 4.x)
 Write-Host "-> Forge公式依存関係インストール中..." -ForegroundColor Yellow
 & $PythonExe -m pip install -r requirements_versions.txt
 
