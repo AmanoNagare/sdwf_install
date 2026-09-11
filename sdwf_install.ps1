@@ -2,20 +2,20 @@ $targetFile = "$PWD\setup_forge.ps1"
 
 @'
 # ==============================================================================
-# Stable Diffusion WebUI Forge: 汎用・決定版セットアップ＆起動スクリプト
+# Stable Diffusion WebUI Forge: 汎用セットアップ＆起動スクリプト
 # ==============================================================================
 $ErrorActionPreference = "Stop"
 
 # --- 設定項目 ---
 $InstallDir = "$HOME\SD_Forge"
 $ForgeRepo  = "https://github.com/lllyasviel/stable-diffusion-webui-forge.git"
-$TorchCuda  = "cu124"          # CUDA 12.4
-$LaunchArgs = "--cuda-malloc"  # RTX A4000 等の 16GB VRAM 最適化
+$TorchCuda  = "cu124"
+$LaunchArgs = "--cuda-malloc"
 # ----------------
 
 Write-Host "=== [1/5] 前処理・リポジトリ取得 ===" -ForegroundColor Cyan
 
-# ゾンビプロセスの安全な終了（エラーが出てもスクリプトを止めない）
+# PowerShellネイティブコマンドでプロセスを終了（エラーは完全に無視される）
 Get-Process -Name "python", "pythonw" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 
 if (-not (Get-Command "git" -ErrorAction SilentlyContinue)) {
@@ -46,17 +46,15 @@ if (-not (Test-Path $PythonExe)) {
     & $uv venv $VenvDir --python 3.10 --seed
 }
 
-Write-Host "`n=== [3/5] PyTorch & コア要件の高速導入 ===" -ForegroundColor Cyan
-# PyTorch (CUDA 12.4)
+Write-Host "`n=== [3/5] PyTorch & コア要件の導入 ===" -ForegroundColor Cyan
 Write-Host "-> PyTorch ($TorchCuda) インストール中..." -ForegroundColor Yellow
 & $uv pip install torch torchvision torchaudio --index-url "https://download.pytorch.org/whl/$TorchCuda" --python $PythonExe
 
-# Forge公式 requirements_versions.txt (Pydantic 2.8.2 / FastAPI 0.104.1 / Gradio 4.x)
 Write-Host "-> Forge公式依存関係インストール中..." -ForegroundColor Yellow
 & $PythonExe -m pip install -r requirements_versions.txt
 
-Write-Host "`n=== [4/5] 競合防止ロック & 不足パッケージ先行導入 ===" -ForegroundColor Cyan
-# 1. 全ての pip 実行で NumPy 2.x の侵入を阻止する物理ロック (pip.ini)
+Write-Host "`n=== [4/5] 競合防止ロック & ライブラリ整合性固定 ===" -ForegroundColor Cyan
+# 1. pip.ini による NumPy 2.x の侵入ブロック
 $ConstraintFile = "$InstallDir\constraints.txt"
 @"
 numpy>=1.26.2,<2.0.0
@@ -69,18 +67,18 @@ $env:PIP_CONSTRAINT = $ConstraintFile
 constraint = $ConstraintFile
 "@ | Set-Content -Path "$VenvDir\pip.ini" -Encoding Ascii
 
-# 2. scikit-image と画像処理ライブラリを NumPy 1.x の下で事前固定
-Write-Host "-> scikit-image 及び関連ライブラリを固定導入中..." -ForegroundColor Yellow
+# 2. scikit-image と NumPy 1.x の整合性を確定
+Write-Host "-> scikit-image 及び関連ライブラリを固定中..." -ForegroundColor Yellow
 & $PythonExe -m pip install scipy imageio tifffile networkx
 & $PythonExe -m pip install --force-reinstall --no-deps "numpy==1.26.4"
 & $PythonExe -m pip install --force-reinstall --no-deps scikit-image
 
-# 3. 拡張機能で頻出するモジュールを事前ビルド
+# 3. 頻出モジュールの事前ビルド
 & $PythonExe -m pip install "setuptools<70" wheel
 & $PythonExe -m pip install --no-build-isolation https://github.com/openai/CLIP/archive/d50d76daa670286dd6cacf3bcd80b5e4823fc8e1.zip
 & $PythonExe -m pip install open-clip-torch bitsandbytes==0.45.3
 
-# 4. 次回以降ダブルクリックで起動できる webui-user.bat の生成
+# 4. 次回以降の直接起動用バッチ生成
 $UserBat = "$InstallDir\webui-user.bat"
 @"
 @echo off
